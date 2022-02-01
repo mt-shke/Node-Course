@@ -1142,3 +1142,221 @@ if (numericFilters) {
 </details>
 
 </details>
+
+## V - Authentication - JWT
+
+<details>
+<summary>Path</summary>
+
+<details>
+<summary>Pattern</summary>
+
+controller
+
+```js
+const CustomeAPIError = require("../errors/custom-error");
+const jwt = require("jsonwebtoken");
+
+const login = async (req, res) => {
+	const { username, password } = req.body;
+	if (!username || !password) {
+		throw new CustomeAPIError("Please provide email and password", 400);
+	}
+	const id = new Date().getDate();
+	const token = jwt.sign({ id, username }, process.env.JWT_SECRET, { expiresIn: "30d" });
+	res.status(200).json({ msg: "user created", token });
+};
+
+const dashboard = async (req, res) => {
+	console.log(req.user);
+
+	const luckyNumber = Math.floor(Math.random() * 100);
+	res
+		.status(200)
+		.json({ msg: `Hello ${req.user.username}`, secret: `Here is your lucky number ${luckyNumber}` });
+};
+
+module.exports = { login, dashboard };
+```
+
+routes
+
+```js
+const { dashboard, login } = require("../controllers/main");
+
+const router = require("express").Router();
+
+const authMiddleware = require("../middleware/auth");
+
+router.route("/dashboard").get(authMiddleware, dashboard);
+router.route("/login").post(login);
+```
+
+</details>
+
+<details>
+<summary>Custom error classes - routeErrorMiddleware - http-status-code package</summary>
+
+```js
+// npm i http-status-codes
+```
+
+errors/custom-error
+
+```js
+class CustomAPIError extends Error {
+	constructor(message, statusCode) {
+		super(message);
+	}
+}
+
+module.exports = CustomAPIError;
+```
+
+errors/unauthicated
+
+```js
+const CustomAPIError = require("./custom-error");
+const { StatusCodes } = require("http-status-codes");
+
+class UnauthenticatedError extends CustomAPIError {
+	constructor(message, statusCode) {
+		super(message);
+		this.statusCode = StatusCodes.UNAUTHORIZED;
+	}
+}
+```
+
+middleware/auth
+
+```js
+const { UnauthenticatedError } = require("../errors");
+
+const authenticationMiddleware = async (req, res, next) => {
+	const authHeader = req.headers.authorization;
+
+	if (!authHeader || !authHeader.startsWith("Bearer ")) {
+		throw new UnauthenticatedError("No token provided");
+	}
+	cons
+```
+
+</details>
+
+</details>
+
+## VI - Jobs API
+
+<details>
+<summary>Path</summary>
+
+<details>
+<summary>Register User : Model/Schema - bcrypt - mongoose Middleware</summary>
+
+models/User
+
+```js
+const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
+
+const UserSchema = new mongoose.Schema({
+	name: {
+		type: String,
+		required: [true, "Please provide a name"],
+		minlength: 3,
+		maxlength: 50,
+	},
+	email: {
+		type: String,
+		required: [true, "Please provide valid email"],
+		match: [
+			/^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/,
+			"Please provide valid email",
+		],
+		unique: true,
+	},
+	password: {
+		type: String,
+		required: [true, "Please provide password"],
+		minlength: 6,
+	},
+});
+
+// Using mongoose middleware
+UserSchema.pre("save", async function () {
+	const salt = await bcrypt.genSalt(10);
+	this.password = await bcrypt.hash(this.password, salt);
+});
+
+module.exports = mongoose.model("User", UserSchema);
+```
+
+controllers/auth
+
+```js
+const User = require("../models/User");
+const { StatusCodes } = require("http-status-codes");
+const { BadRequestError } = require("../errors");
+
+const register = async (req, res) => {
+	// without mongoose middleware method
+	// const { name, email, password } = req.body;
+	// const salt = await bcrypt.genSalt(10);
+	// const hashedPassword = await bcrypt.hash(password, salt);
+	// const tempUser = { name, email, password: hashedPassword };
+	// if (!name || !email || !password) {
+	// 	throw new BadRequestError("Please verify check required fields");
+	// }
+	// const user = await User.create({ ...tempUser });
+	const user = await User.create({ ...req.body });
+	res.status(StatusCodes.CREATED).json({ user });
+};
+
+const login = async (req, res) => {
+	res.send("login user");
+};
+
+module.exports = { register, login };
+```
+
+</details>
+
+<details>
+<summary>Register - Token - custom Schema.methods</summary>
+
+controllers/auth
+
+```js
+const jwt = require("jsonwebtoken");
+
+const register = async (req, res) => {
+	const user = await User.create({ ...req.body });
+	const token = jwt.sign({ userId: user._id, name: user.name }, "jwtSecret", { expiresIn: "30d" });
+	res.status(StatusCodes.CREATED).json({ user: { name: user.name }, token });
+};
+```
+
+models/User
+
+```js
+// Using mongoose middleware - token
+UserSchema.methods.getName = function () {
+	return this.name;
+};
+UserSchema.methods.createJWT = function () {
+	return jwt.sign({ userId: this._id, name: this.name }, process.env.JWT_SECRET, {
+		expiresIn: process.env.JWT_LIFETIME,
+	});
+};
+```
+
+```js
+// MONGO_URI=mongodb+srv://node:nodepass@cluster0.chfbj.mongodb.net/06-JOBS-API?retryWrites=true&w=majority
+// JWT_SECRET=+KbPeShVmYq3t6w9z$C&E)H@McQfTjWn
+// # allkeysgenerator.com => encyption key => 256 bit
+// JWT_LIFETIME=30d
+```
+
+</details>
+
+</details>
