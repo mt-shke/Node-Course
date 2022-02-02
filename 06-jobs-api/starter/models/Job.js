@@ -1,27 +1,30 @@
 const mongoose = require("mongoose");
 
-const UserSchema = new mongoose.Schema({
-	name: {
-		type: String,
-		required: [true, "Please provide a name"],
-		minlength: 3,
-		maxlength: 50,
+const JobSchema = new mongoose.Schema(
+	{
+		company: {
+			type: String,
+			required: [true, "Please provide company name"],
+			maxlength: 50,
+		},
+		position: {
+			type: String,
+			required: [true, "Please provide position"],
+			maxlength: 100,
+		},
+		status: {
+			type: String,
+			enum: ["interview", "declined", "pending"],
+			default: "pending",
+		},
+		createdBy: {
+			type: mongoose.Types.ObjectId,
+			ref: "User",
+			required: [true, "Please provide user"],
+		},
 	},
-	email: {
-		type: String,
-		required: [true, "Please provide valid email"],
-		match: [
-			/^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/,
-			"Please provide valid email",
-		],
-		unique: true,
-	},
-	password: {
-		type: String,
-		required: [true, "Please provide password"],
-		minlength: 6,
-		maxlength: 12,
-	},
-});
+	// createdAt && updatedAt by default
+	{ timestamps: true }
+);
 
-module.exports = mongoose.model("User", UserSchema);
+module.exports = mongoose.model("Job", JobSchema);

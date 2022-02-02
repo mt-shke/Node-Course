@@ -1359,4 +1359,199 @@ UserSchema.methods.createJWT = function () {
 
 </details>
 
+<details>
+<summary>Pattern middleware jobs</summary>
+
+app
+
+```js
+const authenticatedUser = require("./middleware/authentication");
+
+// routers
+const authRouter = require("./routes/auth");
+const jobsRouter = require("./routes/jobs");
+
+// routes
+app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/jobs", authenticatedUser, jobsRouter);
+```
+
+models/Job
+
+```js
+const mongoose = require("mongoose");
+
+const JobSchema = new mongoose.Schema(
+	{
+		company: {
+			type: String,
+			required: [true, "Please provide company name"],
+			maxlength: 50,
+		},
+		position: {
+			type: String,
+			required: [true, "Please provide position"],
+			maxlength: 100,
+		},
+		status: {
+			type: String,
+			enum: ["interview", "declined", "pending"],
+			default: "pending",
+		},
+		createdBy: {
+			type: mongoose.Types.ObjectId,
+			ref: "User",
+			required: [true, "Please provide user"],
+		},
+	},
+	// createdAt && updatedAt by default
+	{ timestamps: true }
+);
+
+module.exports = mongoose.model("Job", JobSchema);
+```
+
+controllers/jobs
+
+```js
+const Job = require("../models/Job");
+const { StatusCodes } = require("http-status-codes");
+const { BadRequestError, NotFoundError } = require("../errors");
+
+const getAllJobs = async (req, res) => {
+	const jobs = await Job.find({ createdBy: req.user.userId }).sort("createdAt");
+	res.status(StatusCodes.OK).json({ jobs, count: jobs.length });
+};
+
+const getJob = async (req, res) => {
+	res.send("Get job");
+};
+const createJob = async (req, res) => {
+	req.body.createdBy = req.user.userId;
+	const job = await Job.create(req.body);
+
+	res.status(StatusCodes.CREATED).json({ job });
+};
+const updateJob = async (req, res) => {
+	res.send("update Job ");
+};
+const deleteJob = async (req, res) => {
+	res.send("delete Job ");
+};
+
+module.exports = { getAllJobs, getJob, createJob, updateJob, deleteJob };
+```
+
+</details>
+
+<details>
+<summary>More error handling</summary>
+
+middleware/error-handler
+
+```js
+const { CustomAPIError } = require("../errors");
+const { StatusCodes } = require("http-status-codes");
+const errorHandlerMiddleware = (err, req, res, next) => {
+	let customError = {
+		// set default
+		statusCode: err.statusCode || StatusCodes.INTERNAL_SERVER_ERROR,
+		msg: err.message || "Something went wrong",
+	};
+
+	// if (err instanceof CustomAPIError) {
+	// 	return res.status(err.statusCode).json({ msg: err.message });
+	// }
+
+	if (err.name === "ValidationError") {
+		customError.msg = Object.values(err.errors)
+			.map((item) => item.message)
+			.join(", ");
+		customError.statusCode = 400;
+	}
+
+	if (err.code && err.code === 11000) {
+		customError.msg = `Duplicate value entered for ${Object.keys(
+			err.keyValue
+		)} field, please choose another value`;
+		customError.statusCode = 400;
+	}
+
+	if (err.name === "CastError") {
+		customError.msg = `No item found with this id: ${err.value}`;
+		customError.statusCode = 404;
+	}
+
+	// return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ err });
+	return res.status(customError.statusCode).json({ msg: customError.msg });
+};
+
+module.exports = errorHandlerMiddleware;
+```
+
+</details>
+
+<details>
+<summary>Security: helmet / cors / xss clean / express rate limit</summary>
+
+```js
+const helmet = require("helmet");
+const cors = require("cors");
+const xss = require("xss-clean");
+const rateLimiter = require("express-rate-limit");
+
+// connectDB
+const connectDB = require("./db/connect");
+const authenticatedUser = require("./middleware/authentication");
+
+// routers
+const authRouter = require("./routes/auth");
+const jobsRouter = require("./routes/jobs");
+
+// error handler
+const notFoundMiddleware = require("./middleware/not-found");
+const errorHandlerMiddleware = require("./middleware/error-handler");
+
+// extra packages
+app.set("trust proxy", 1);
+app.use(
+	rateLimiter({
+		windowMs: 15 * 60 * 1000, // 15 minutes
+		max: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
+	})
+);
+app.use(express.json());
+app.use(helmet());
+app.use(cors());
+app.use(xss());
+app.use(rateLimiter());
+```
+
+heroku/package.json
+
+```js
+	"engines": {
+		"node": "16.x"
+	}
+```
+
+Procfile
+
+```js
+web: node app.js
+```
+
+heroku-cmd
+```js
+// heroku create jobs-api-mt
+
+// sending .env 
+// heroku config:set JWT_LIFETIME=30d
+// 
+
+```
+
+
+</details>
+
 </details>
