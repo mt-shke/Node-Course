@@ -1542,15 +1542,223 @@ web: node app.js
 ```
 
 heroku-cmd
+
 ```js
 // heroku create jobs-api-mt
 
-// sending .env 
+// sending .env
 // heroku config:set JWT_LIFETIME=30d
-// 
-
+//
 ```
 
+</details>
+
+</details>
+
+## VI - FILES UPLOAD
+
+<details>
+<summary>fileupload unlinkSync</summary>
+
+<details>
+<summary>express file upload</summary>
+
+app
+
+```js
+const fileUpload = require("express-fileupload");
+app.use(fileUpload());
+```
+
+controller
+
+```js
+// "cloudinary": "^1.26.2",
+// "express-fileupload": "^1.2.1",
+
+const path = require("path");
+const Product = require("../models/Product");
+const { StatusCodes } = require("http-status-codes");
+const CustomError = require("../errors");
+const cloudinay = require("cloudinary").v2;
+const fs = require("fs");
+
+// LOCAL
+const uploadProductImageLocal = async (req, res) => {
+	// check if file exist, format, size
+	if (!req.files) {
+		throw new CustomError.BadRequestError("No File Uploaded");
+	}
+	const productImage = req.files.image;
+
+	if (!productImage.mimetype.startsWith("image")) {
+		throw new CustomError.BadRequestError("Please Uploaded Image");
+	}
+
+	const maxSize = 1024 * 1024;
+
+	if (productImage.size > maxSize) {
+		throw new CustomError.BadRequestError("Please upload image smaller 1KB");
+	}
+
+	const imagePath = path.join(__dirname, "../public/uploads/" + `${productImage.name}`);
+	await productImage.mv(imagePath);
+	return res.status(StatusCodes.OK).json({ image: { src: `/uploads/${productImage.name}` } });
+};
+
+// DIRECT TO CLOUDINARY
+const uploadProductImage = async (req, res) => {
+	const result = await cloudinay.uploader.upload(req.files.image.tempFilePath, {
+		use_filename: true,
+		folder: "file-upload",
+	});
+
+	// Delete temporary file
+	fs.unlinkSync(req.files.image.tempFilePath);
+
+	console.log(result);
+	return res.status(StatusCodes.OK).json({ image: { src: result.secure_url } });
+};
+
+module.exports = { uploadProductImage };
+```
+
+app
+
+```js
+// cloudinary settings
+
+const cloudinary = require("cloudinary").v2;
+cloudinary.config({
+	cloud_name: process.env.CLOUD_NAME,
+	api_key: process.env.CLOUD_API_KEY,
+	api_secret: process.env.CLOUD_API_SECRET,
+});
+
+// database
+const connectDB = require("./db/connect");
+const productsRouter = require("./routes/productRoutes");
+
+// error handler
+const notFoundMiddleware = require("./middleware/not-found");
+const errorHandlerMiddleware = require("./middleware/error-handler");
+
+app.use(express.static("./public"));
+app.use(express.json());
+app.use(fileUpload({ useTempFiles: true }));
+```
+
+</details>
+
+</details>
+
+## VIII - EMAIL
+
+<details>
+<summary>nodemailer - sendgrid</summary>
+
+```js
+// "@sendgrid/mail": "^7.4.6",
+// "nodemailer": "^6.6.3",
+// npm install --save @sendgrid/mail
+
+const nodemailer = require("nodemailer");
+const sgMail = require("@sendgrid/mail");
+
+const sendEmailEthereal = async (req, res) => {
+	let testAccount = await nodemailer.createTestAccount();
+
+	const transporter = nodemailer.createTransport({
+		host: "smtp.ethereal.email",
+		port: 587,
+		auth: {
+			user: "dedric.hansen85@ethereal.email",
+			pass: "1saAkfkcTNrkpv2uwh",
+		},
+	});
+
+	let info = await transporter.sendMail({
+		from: '"Jean Pierre" <micheltt.dev@gmail.com>', // sender address
+		to: "micheltt.dev@gmail.com, micheltt.dv@gmail.com", // list of receivers
+		subject: "Hello ✔", // Subject line
+		text: "Hello world?", // plain text body
+		html: "<b>Hello world?</b>", // html body
+	});
+
+	res.json(info);
+};
+
+const sendEmail = async (req, res) => {
+	sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+	const msg = {
+		to: "micheltt.dv@gmail.com",
+		from: "micheltt.dev@gmail.com",
+		subject: "Sending with SendGrid is Fun",
+		text: "and easy to do anywhere, even with Node.js",
+		html: "<strong>and easy to do anywhere, even with Node.js</strong>",
+	};
+	sgMail
+		.send(msg)
+		.then(() => {
+			console.log("Email sent");
+		})
+		.catch((error) => {
+			console.error(error);
+		});
+
+	const info = await sgMail.send(msg);
+	res.json(info);
+};
+
+module.exports = sendEmail;
+```
+
+</details>
+
+## IX - STRIPE
+
+<details>
+<summary>stripe</summary>
+
+```js
+// .env SECRET_KEY(back-end) + PUBLIC_KEY(front-end )
+const stripe = require("stripe")(process.env.SECRET_KEY);
+
+const stripeController = async (req, res) => {
+	const { purchase, total_amount, shipping_fee } = req.body;
+
+	const calculateOrderAmount = () => {
+		return total_amount + shipping_fee;
+	};
+
+	const paymentIntent = await stripe.paymentIntents.create({
+		amount: calculateOrderAmount(),
+		currency: "usd",
+		automatic_payment_methods: {
+			enabled: true,
+		},
+	});
+
+	res.json({ clientSecret: paymentIntent.client_secret });
+};
+
+module.exports = stripeController;
+```
+
+</details>
+
+## X - eCommerce API
+
+<details>
+<summary></summary>
+
+<details>
+<summary></summary>
+
+```js
+
+```
 
 </details>
 

@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@sendgrid/mail": "^7.6.0",
     "mongoose": "^6.1.8",
     "morgan": "^1.10.0"
   }
