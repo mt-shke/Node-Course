@@ -7,6 +7,24 @@
 // process => info about env where the program is being executed
 ```
 
+<details>
+<summary>Mongoose cmd</summary>
+
+```js
+// const task = await Task.create(req.body);
+// const tasks = await Task.find({});
+// const task = await Task.findOne({ _id: taskID });
+// const task = await Task.findOneAndDelete({ _id: taskID });
+// <!-- UPDATE : Option = new & runValidators  -->
+// const task = await Task.findOneAndUpdate({ _id: taskID }, req.body, { new: true, runValidators: true });
+
+// Count Documents
+// const isFirstAccount = (await User.countDocuments({})) === 0;
+//
+```
+
+</details>
+
 ## I - Intro
 
 <details>
@@ -749,6 +767,10 @@ MONGO_URI=mongodb+srv://... etc
 // const task = await Task.findOneAndDelete({ _id: taskID });
 // <!-- UPDATE : Option = new & runValidators  -->
 // const task = await Task.findOneAndUpdate({ _id: taskID }, req.body, { new: true, runValidators: true });
+
+// Count Documents
+// const isFirstAccount = (await User.countDocuments({})) === 0;
+//
 ```
 
 models/Task.js
@@ -1258,6 +1280,7 @@ models/User
 ```js
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
 const UserSchema = new mongoose.Schema({
 	name: {
@@ -1282,11 +1305,27 @@ const UserSchema = new mongoose.Schema({
 	},
 });
 
-// Using mongoose middleware
+// Using mongoose middleware - password hash
 UserSchema.pre("save", async function () {
 	const salt = await bcrypt.genSalt(10);
 	this.password = await bcrypt.hash(this.password, salt);
 });
+
+// Using mongoose middleware - token
+UserSchema.methods.getName = function () {
+	return this.name;
+};
+
+UserSchema.methods.createJWT = function () {
+	return jwt.sign({ userId: this._id, name: this.name }, process.env.JWT_SECRET, {
+		expiresIn: process.env.JWT_LIFETIME,
+	});
+};
+
+UserSchema.methods.comparePassword = async function (candidatePassword) {
+	const isMatch = await bcrypt.compare(candidatePassword, this.password);
+	return isMatch;
+};
 
 module.exports = mongoose.model("User", UserSchema);
 ```
@@ -1751,12 +1790,75 @@ module.exports = stripeController;
 ## X - eCommerce API
 
 <details>
-<summary></summary>
+<summary>Path</summary>
 
 <details>
-<summary></summary>
+<summary>Setup</summary>
+
+- Basics & Server Start - DB - basics routes & middleware + morgan
+- models
+
+app
 
 ```js
+//  Setup Basic
+//  Connect To DB
+//  Basic Routes and Middleware
+//  Morgan Package
+```
+
+```js
+// Schema User
+// bcrypt JWT
+// token stored in cookie
+```
+
+</details>
+
+<details>
+<summary>Schema - mongoose validate - validator package</summary>
+
+```js
+// npm i validator
+const mongoose = require("mongoose");
+const validator = require("validator");
+
+const UserSchema = new mongoose.Schema({
+	email: {
+		type: String,
+		required: [true, "Please provide a email"],
+		validate: {
+			validator: validator.isEmail,
+			message: "Please provid valid email",
+		},
+	},
+	role: {
+		type: String,
+		enum: ["admin", "user"],
+		default: "user",
+	},
+});
+
+module.exports = mongoose.model("User", UserSchema);
+```
+
+</details>
+
+<details>
+<summary>cookie</summary>
+
+```js
+	const tokenUser = { userId: user._id, email: user.email, name: user.name };
+	const token = utils.createJWT(tokenUser);
+
+	const oneDay = 1000 * 60 * 60 * 24;
+
+	res.cookie("token", token, {
+		httpOnly: true,
+		expires: new Date(Date.now() + oneDay),
+	});
+	res.status(200).json({ message: "login", token });
+};
 
 ```
 

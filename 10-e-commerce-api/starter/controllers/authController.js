@@ -1,9 +1,10 @@
 const CustomError = require("../errors/");
 const { StatusCodes } = require("http-status-codes");
 const User = require("../models/User");
+const { attachCookiesToResponse } = require("../utils/");
 
 const register = async (req, res) => {
-	const { name, password, email } = req.body;
+	const { name, email, password } = req.body;
 
 	if (!name || !email || !password) {
 		throw new CustomError.BadRequestError("Please provide name, password and email");
@@ -15,12 +16,34 @@ const register = async (req, res) => {
 		throw new CustomError.BadRequestError("Email already exist");
 	}
 
-	const user = await User.create(req.body);
+	const isFirstAccount = (await User.countDocuments({})) === 0;
+	const role = isFirstAccount ? "admin" : "user";
+
+	const user = await User.create({ name, email, password, role });
 	res.status(StatusCodes.CREATED).json(user);
 };
 
 const login = async (req, res) => {
-	res.status(200).json({ message: "login" });
+	const { email, password } = req.body;
+
+	if (!email || !password) {
+		throw new CustomError.BadRequestError("Please provid valid email and password");
+	}
+
+	const user = await User.findOne({ email });
+
+	if (!user) {
+		throw new CustomError.BadRequestError("No user found with this email");
+	}
+
+	const passwordMatch = await user.comparePassword(password, user.password);
+	if (!passwordMatch) {
+		throw new CustomError.UnauthenticatedError("Incorrect password");
+	}
+	const tokenUser = { userId: user._id, email: user.email, name: user.name };
+	attachCookiesToResponse({ res, user: tokenUser });
+
+	res.status(200).json({ message: "login", token: tokenUser });
 };
 
 const logout = async (req, res) => {
