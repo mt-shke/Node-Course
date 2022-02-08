@@ -7,12 +7,18 @@ const app = express();
 // Packages
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
+const cors = require("cors");
+const fileUpload = require("express-fileupload");
 
 // DB
 const connectDB = require("./db/connect");
 
 // RoutesImport
 const authRouter = require("./routes/authRoutes");
+const userRouter = require("./routes/userRoutes.Js");
+const productRouter = require("./routes/productRoutes");
+const reviewRouter = require("./routes/reviewRoutes");
+const orderRouter = require("./routes/orderRoutes");
 
 // MiddlewareImport
 const errorHandlerMiddleware = require("./middleware/error-handler");
@@ -24,16 +30,22 @@ const notFoundMiddleware = require("./middleware/not-found");
 app.use(morgan("tiny"));
 app.use(express.json());
 app.use(cookieParser(process.env.JWT_SECRET));
+app.use(cors());
+app.use(express.static("./public"));
+app.use(fileUpload());
 
 // Routes
 app.get("/", (req, res) => {
 	res.send("welcome");
 });
 app.get("/api/v1", (req, res) => {
-	console.log(req.signedCookies);
 	res.send("welcome");
 });
 app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/users", userRouter);
+app.use("/api/v1/products", productRouter);
+app.use("/api/v1/reviews", reviewRouter);
+app.use("/api/v1/orders", orderRouter);
 
 // Middleware
 app.use(notFoundMiddleware);

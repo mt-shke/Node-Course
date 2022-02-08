@@ -1862,6 +1862,222 @@ module.exports = mongoose.model("User", UserSchema);
 
 ```
 
+<details>
+<summary>using CRA</summary>
+
+app => cors
+
+```js
+// can only use cookie, send them back, on same domain
+const cors = require("cors");
+
+// DB
+const connectDB = require("./db/connect");
+
+// RoutesImport
+const authRouter = require("./routes/authRoutes");
+
+// MiddlewareImport
+const errorHandlerMiddleware = require("./middleware/error-handler");
+const notFoundMiddleware = require("./middleware/not-found");
+// const authMiddleware = require('./middleware/authentication')
+
+// app.use
+
+app.use(morgan("tiny"));
+app.use(express.json());
+app.use(cookieParser(process.env.JWT_SECRET));
+app.use(cors());
+```
+
+package.json
+
+```json
+	},
+	"proxy": "http://localhost:5000"
+}
+
+```
+
+react-app.js
+
+```js
+const fetchTesting = async () => {
+	// const url = `${rootUrl}/api/v1`;
+	const url = `/api/v1`;
+	await fetch(url);
+};
+```
+
+</details>
+</details>
+
+<details>
+<summary>cookie - auth middleware</summary>
+
+middleware/authentication
+
+```js
+const CustomError = require("../errors");
+const { isTokenValid } = require("../utils");
+
+const authenticateUser = async (req, res, next) => {
+	const token = req.signedCookies.token;
+
+	if (!token) {
+		throw new CustomError.UnauthenticatedError("Authentication Invalid");
+	}
+
+	try {
+		const payload = isTokenValid(token);
+		req.user = { name: payload.name, email: payload.email, role: payload.role };
+		next();
+	} catch (error) {
+		throw new CustomError.UnauthenticatedError("Authentication Invalid Token");
+	}
+};
+
+module.exports = { authenticateUser };
+```
+
+routes/userRoutes
+
+```js
+// those routes are only accessible for logged in user now
+// authenticateUser middleware blocks route
+
+router.route("/").get(authenticateUser, getAllUsers);
+router.route("/:id").get(authenticateUser, getSingleUser);
+```
+
+</details>
+
+<details>
+<summary>mongoose: findOneAndUpdate - user.save()</summary>
+
+```js
+const updateUserPassword = async (req, res) => {
+	const { oldPassword, newPassword } = req.body;
+	if (!newPassword || !oldPassword) {
+		throw new CustomError.BadRequestError("Please provide passwords");
+	}
+
+	const user = await User.findOne({ _id: req.user.userId, role: "user" });
+	if (!user) {
+		throw new CustomError.NotFoundError(`No user with id : ${req.params.id}`);
+	}
+
+	const isPasswordCorrect = await user.comparePassword(oldPassword);
+	if (!isPasswordCorrect) {
+		throw new CustomError.UnauthenticatedError("Invalid Credentials");
+	}
+
+	user.password = newPassword;
+	await user.save();
+
+	res.status(StatusCodes.OK).json({ message: "Update success" });
+};
+```
+
+</details>
+
+<details>
+<summary>uploadimage - express file upload</summary>
+
+```js
+//  npm i express-fileupload
+const fileUpload = require('express-fileupload)
+app.use(fileUpload());
+
+```
+
+</details>
+
+<details>
+<summary>populate</summary>
+
+```js
+// const reviews = await Review.find({})
+// 	.populate({ path: "product", select: "name company price" })
+// 	.populate({ path: "user", select: "name" });
+```
+
+<!-- USING VIRTUAL  -->
+
+ProductSchema
+
+```js
+ProductSchema.virtual("reviews", {
+	ref: "Review",
+	localField: "_id",
+	foreignField: "product",
+	justOne: false,
+});
+```
+
+controller
+
+```js
+const product = await Product.findOne({ _id: productId }).populate("reviews");
+```
+
+</details>
+
+<details>
+<summary>mongoose Schema pre hook remove</summary>
+
+```js
+ProductSchema.pre("remove", async function (next) {
+	await this.model("Review").deleteMany({ product: this._id });
+});
+```
+
+</details>
+
+<details>
+<summary>aggregate pipeline</summary>
+
+ReviewSchema
+
+```js
+// Aggregation pipeline
+ReviewSchema.statics.calculateAverageRating = async function (productId) {
+	const result = await this.aggregate([
+		{
+			$match: { product: productId },
+		},
+		{
+			$group: {
+				_id: null,
+				averageRating: { $avg: "$rating" },
+				numOfReviews: { $sum: 1 },
+			},
+		},
+	]);
+
+	try {
+		await this.model("Product").findOneAndUpdate(
+			{ _id: productId },
+			{
+				averageRating: Math.ceil(result[0]?.averageRating || 0),
+				numOfReviews: result[0]?.numOfReviews || 0,
+			}
+		);
+	} catch (error) {
+		console.log(error);
+	}
+};
+
+// Calc when these methods are called
+ReviewSchema.post("save", async function () {
+	await this.constructor.calculateAverageRating(this.product);
+});
+
+ReviewSchema.post("remove", async function () {
+	await this.constructor.calculateAverageRating(this.product);
+});
+```
+
 </details>
 
 </details>
